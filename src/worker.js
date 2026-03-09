@@ -387,8 +387,15 @@ async function handleGenerate(request, env, url) {
 
   if (!id) {
     id = await createUniqueShortId(env);
-    await env.SUB_STORE.put(`sub:${id}`, JSON.stringify(payload));
-    await env.SUB_STORE.put(dedupKey, id);
+    const ttl = 60 * 60 * 24 * 7; // 7天
+
+    await env.SUB_STORE.put(`sub:${id}`, JSON.stringify(payload), {
+      expirationTtl: ttl,
+    });
+
+    await env.SUB_STORE.put(dedupKey, id, {
+      expirationTtl: ttl,
+    });
   }
 
   const origin = url.origin;
