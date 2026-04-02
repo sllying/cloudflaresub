@@ -1,14 +1,23 @@
-<p align="center">
-  <img src="./public/icons/auto.svg" alt="CloudflareSub Logo" width="88" />
+<table>
+  <tr>
+    <td width="96" valign="middle">
+      <img src="./public/icons/auto.svg" alt="CloudflareSub Logo" width="72" />
+    </td>
+    <td valign="middle">
+      <h1>CloudflareSub</h1>
+      <p><strong>一个轻量化的优选IP订阅器</strong></p>
+    </td>
+  </tr>
+</table>
+
+<p>
+  <img src="https://img.shields.io/badge/license-MIT-2ea44f" alt="License MIT" />
+  <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Windows" />
+  <img src="https://img.shields.io/badge/platform-macOS-111111" alt="macOS" />
+  <img src="https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black" alt="Linux" />
+  <img src="https://img.shields.io/badge/runtime-Cloudflare%20Workers-F38020?logo=cloudflare&logoColor=white" alt="Cloudflare Workers" />
+  <img src="https://img.shields.io/badge/status-active-00C853" alt="Status Active" />
 </p>
-
-# CloudflareSub
-
-基于 Cloudflare Workers + Workers KV 的订阅生成器，支持：
-- 输入原始节点（`vmess://` / `vless://` / `trojan://`）
-- 批量替换为优选 IP / 域名
-- 生成可分享的短链订阅（Raw / Clash / Surge）
-- Web 页面一键复制与二维码展示
 
 ## 快速开始（Cloudflare 网页端）
 ```text
