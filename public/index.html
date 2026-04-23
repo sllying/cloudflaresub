@@ -67,6 +67,21 @@ cf.example.com:443#US-Edge"
               <label for="namePrefix">3. 备注前缀（可选）</label>
               <input id="namePrefix" name="namePrefix" type="text" placeholder="例如 CF" />
             </div>
+            <div>
+              <label for="customShortId">4. 固定订阅标识（可选）</label>
+              <input
+                id="customShortId"
+                name="customShortId"
+                type="text"
+                placeholder="例如 6c9NHHZNxv"
+                autocomplete="off"
+              />
+              <p class="hint">设置后会固定生成 <code>/sub/你的标识</code>，下次更新节点可直接覆盖同一路径。</p>
+              <p class="hint">仅保存在当前浏览器本地，换设备或换浏览器不会自动带出。</p>
+            </div>
+          </div>
+
+          <div class="grid two-col compact">
             <div class="checkbox-wrap">
               <input id="keepOriginalHost" name="keepOriginalHost" type="checkbox" checked />
               <label for="keepOriginalHost">保留原节点 Host / SNI（推荐）</label>
@@ -107,6 +122,7 @@ cf.example.com:443#US-Edge"
             <h2>订阅结果</h2>
             <p class="section-desc">选择适合你的客户端格式，复制订阅链接或扫码导入。</p>
           </div>
+          <button id="copyAllLinksBtn" type="button" class="secondary">复制全部客户端订阅</button>
         </div>
 
         <div id="warningBox" class="warning hidden"></div>

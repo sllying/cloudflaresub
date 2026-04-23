@@ -4,17 +4,21 @@ const fillDemoBtn = document.getElementById('fillDemoBtn');
 const resultSection = document.getElementById('resultSection');
 const warningBox = document.getElementById('warningBox');
 const previewBody = document.getElementById('previewBody');
+const copyAllLinksBtn = document.getElementById('copyAllLinksBtn');
+const customShortIdInput = document.getElementById('customShortId');
 
 const autoUrl = document.getElementById('autoUrl');
 const rawUrl = document.getElementById('rawUrl');
 const clashUrl = document.getElementById('clashUrl');
 const surgeUrl = document.getElementById('surgeUrl');
+const rocketUrl = document.getElementById('rocketUrl');
 const emptyState = document.getElementById('emptyState');
 
 const qrModal = document.getElementById('qrModal');
 const qrCanvas = document.getElementById('qrCanvas');
 const qrText = document.getElementById('qrText');
 const closeQrModal = document.getElementById('closeQrModal');
+const CUSTOM_SHORT_ID_STORAGE_KEY = 'cf-sub-generator:custom-short-id';
 
 const demoVmess = [
   'vmess://ewogICJ2IjogIjIiLAogICJwcyI6ICJkZW1vLXdzLXRscyIsCiAgImFkZCI6ICJlZGdlLmV4YW1wbGUuY29tIiwKICAicG9ydCI6ICI0NDMiLAogICJpZCI6ICIwMDAwMDAwMC0wMDAwLTQwMDAtODAwMC0wMDAwMDAwMDAwMDEiLAogICJzY3kiOiAiYXV0byIsCiAgIm5ldCI6ICJ3cyIsCiAgInRscyI6ICJ0bHMiLAogICJwYXRoIjogIi93cyIsCiAgImhvc3QiOiAiZWRnZS5leGFtcGxlLmNvbSIsCiAgInNuaSI6ICJlZGdlLmV4YW1wbGUuY29tIiwKICAiZnAiOiAiY2hyb21lIiwKICAiYWxwbiI6ICJoMixodHRwLzEuMSIKfQ=='
@@ -33,6 +37,12 @@ fillDemoBtn.addEventListener('click', () => {
   document.getElementById('keepOriginalHost').checked = true;
 });
 
+restoreCustomShortId();
+
+customShortIdInput.addEventListener('input', () => {
+  persistCustomShortId(customShortIdInput.value);
+});
+
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   warningBox.classList.add('hidden');
@@ -42,6 +52,7 @@ form.addEventListener('submit', async (event) => {
     nodeLinks: document.getElementById('nodeLinks').value,
     preferredIps: document.getElementById('preferredIps').value,
     namePrefix: document.getElementById('namePrefix').value,
+    customShortId: customShortIdInput.value,
     keepOriginalHost: document.getElementById('keepOriginalHost').checked,
   };
 
@@ -64,7 +75,7 @@ form.addEventListener('submit', async (event) => {
 
     autoUrl.value = data.urls.auto;
     rawUrl.value = data.urls.raw;
-    document.getElementById('rocketUrl').value = data.urls.raw;
+    rocketUrl.value = data.urls.raw;
     clashUrl.value = data.urls.clash;
     surgeUrl.value = data.urls.surge;
 
@@ -110,17 +121,7 @@ document.addEventListener('click', async (event) => {
     if (!input?.value) {
       return;
     }
-    try {
-      await navigator.clipboard.writeText(input.value);
-      const originalText = copyButton.textContent;
-      copyButton.textContent = '已复制';
-      setTimeout(() => {
-        copyButton.textContent = originalText;
-      }, 1200);
-    } catch {
-      input.select();
-      document.execCommand('copy');
-    }
+    await copyTextWithFeedback(copyButton, input.value);
     return;
   }
 
@@ -161,11 +162,88 @@ document.addEventListener('click', async (event) => {
 });
 
 closeQrModal.addEventListener('click', closeQrDialog);
+copyAllLinksBtn.addEventListener('click', async () => {
+  const shareText = buildClientShareText();
+  if (!shareText) {
+    warningBox.textContent = '请先生成订阅链接，再复制全部客户端订阅。';
+    warningBox.classList.remove('hidden');
+    return;
+  }
+
+  warningBox.classList.add('hidden');
+  await copyTextWithFeedback(copyAllLinksBtn, shareText);
+});
 
 function closeQrDialog() {
   qrModal.classList.add('hidden');
   qrModal.setAttribute('aria-hidden', 'true');
   qrCanvas.innerHTML = '';
+}
+
+function restoreCustomShortId() {
+  try {
+    const saved = window.localStorage.getItem(CUSTOM_SHORT_ID_STORAGE_KEY);
+    if (saved) {
+      customShortIdInput.value = saved;
+    }
+  } catch {}
+}
+
+function persistCustomShortId(value) {
+  try {
+    const normalized = String(value || '').trim();
+    if (normalized) {
+      window.localStorage.setItem(CUSTOM_SHORT_ID_STORAGE_KEY, normalized);
+      return;
+    }
+    window.localStorage.removeItem(CUSTOM_SHORT_ID_STORAGE_KEY);
+  } catch {}
+}
+
+function buildClientShareText() {
+  if (!rawUrl.value || !clashUrl.value || !surgeUrl.value) {
+    return '';
+  }
+
+  return [
+    'V2rayN ',
+    `适用于 V2rayN / v2rayNG：${rawUrl.value}`,
+    '',
+    'Clash',
+    `适用于 Clash / Mihomo / Clash Verge：${clashUrl.value}`,
+    '',
+    'Shadowrocket',
+    `适用于 iPhone / iPad 小火箭：${rocketUrl.value}`,
+    '',
+    'Surge',
+    `适用于 Surge Profile 导入:${surgeUrl.value}`,
+  ].join('\n');
+}
+
+async function copyTextWithFeedback(button, text) {
+  const showCopied = () => {
+    const originalText = button.textContent;
+    button.textContent = '已复制';
+    setTimeout(() => {
+      button.textContent = originalText;
+    }, 1200);
+  };
+
+  try {
+    await navigator.clipboard.writeText(text);
+    showCopied();
+  } catch {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', 'readonly');
+    textarea.style.position = 'fixed';
+    textarea.style.top = '-9999px';
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    showCopied();
+  }
 }
 
 function escapeHtml(value) {

@@ -406,6 +406,15 @@ async function createUniqueShortId(env, tries = 8) {
   throw new Error('无法生成唯一短链接，请稍后再试');
 }
 
+function normalizeCustomShortId(value = '') {
+  const id = String(value || '').trim();
+  if (!id) return '';
+  if (!/^[A-Za-z0-9_-]{4,64}$/.test(id)) {
+    throw new Error('固定订阅标识仅支持 4-64 位字母、数字、下划线和连字符');
+  }
+  return id;
+}
+
 function normalizeLines(value = '') {
   return String(value)
     .split(/\r?\n/)
@@ -452,6 +461,13 @@ async function handleGenerate(request, env, url) {
     keepOriginalHost: body.keepOriginalHost !== false,
   };
 
+  let customShortId = '';
+  try {
+    customShortId = normalizeCustomShortId(body.customShortId || '');
+  } catch (error) {
+    return json({ ok: false, error: error.message || '固定订阅标识不合法' }, 400);
+  }
+
   const nodes = buildNodes(baseNodes, preferredEndpoints, options);
 
   const payload = {
@@ -464,11 +480,21 @@ async function handleGenerate(request, env, url) {
   const dedupHash = await buildDedupHash(body);
   const dedupKey = `dedup:${dedupHash}`;
 
-  let id = await env.SUB_STORE.get(dedupKey);
+  const ttl = 60 * 60 * 24 * 7; // 7天
+  let id = customShortId || (await env.SUB_STORE.get(dedupKey));
+  let reusedCustomId = false;
 
-  if (!id) {
+  if (customShortId) {
+    reusedCustomId = Boolean(await env.SUB_STORE.get(`sub:${customShortId}`));
+    await env.SUB_STORE.put(`sub:${customShortId}`, JSON.stringify(payload), {
+      expirationTtl: ttl,
+    });
+    await env.SUB_STORE.put(dedupKey, customShortId, {
+      expirationTtl: ttl,
+    });
+    id = customShortId;
+  } else if (!id) {
     id = await createUniqueShortId(env);
-    const ttl = 60 * 60 * 24 * 7; // 7天
 
     await env.SUB_STORE.put(`sub:${id}`, JSON.stringify(payload), {
       expirationTtl: ttl,
@@ -481,18 +507,19 @@ async function handleGenerate(request, env, url) {
 
   const origin = url.origin;
   const accessToken = env.SUB_ACCESS_TOKEN || '';
-  const withToken = (target) =>
-    `${origin}/sub/${id}${
-      target
-        ? `?target=${target}&token=${encodeURIComponent(accessToken)}`
-        : `?token=${encodeURIComponent(accessToken)}`
-    }`;
+  const withToken = (target) => {
+    const subUrl = new URL(`${origin}/sub/${id}`);
+    if (target) subUrl.searchParams.set('target', target);
+    if (accessToken) subUrl.searchParams.set('token', accessToken);
+    return subUrl.toString();
+  };
 
   return json({
     ok: true,
     storage: 'kv',
     deduplicated: true,
     shortId: id,
+    customShortId: Boolean(customShortId),
     urls: {
       auto: withToken(''),
       raw: withToken('raw'),
@@ -512,7 +539,10 @@ async function handleGenerate(request, env, url) {
       host: node.host || '',
       sni: node.sni || '',
     })),
-    warnings: accessToken ? [] : ['未检测到 SUB_ACCESS_TOKEN，订阅链接将没有第二层访问保护。'],
+    warnings: [
+      ...(accessToken ? [] : ['未检测到 SUB_ACCESS_TOKEN，订阅链接将没有第二层访问保护。']),
+      ...(reusedCustomId ? [`固定订阅标识 ${id} 已存在，已用最新节点内容覆盖更新。`] : []),
+    ],
   });
 }
 
