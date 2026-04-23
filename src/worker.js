@@ -152,7 +152,7 @@ function buildNodes(baseNodes, preferredEndpoints, options = {}) {
       });
     }
   }
-  return ensureUniqueNodeNames(output);
+  return output;
 }
 
 function ensureUniqueNodeNames(nodes) {
@@ -457,6 +457,7 @@ async function buildDedupHash(body) {
   const normalized = {
     nodeLinks: normalizeLines(body.nodeLinks || ''),
     preferredIps: normalizeLines(body.preferredIps || ''),
+    appendNodeLinks: normalizeLines(body.appendNodeLinks || ''),
     namePrefix: String(body.namePrefix || '').trim(),
     keepOriginalHost: body.keepOriginalHost !== false,
   };
@@ -472,6 +473,7 @@ async function handleGenerate(request, env, url) {
   }
 
   const baseNodes = parseRawLinks(body.nodeLinks || '');
+  const appendNodes = parseRawLinks(body.appendNodeLinks || '');
   const preferredEndpoints = parsePreferredEndpoints(body.preferredIps || '');
 
   if (!baseNodes.length) return json({ ok: false, error: '没有识别到可用节点' }, 400);
@@ -489,7 +491,8 @@ async function handleGenerate(request, env, url) {
     return json({ ok: false, error: error.message || '固定订阅标识不合法' }, 400);
   }
 
-  const nodes = buildNodes(baseNodes, preferredEndpoints, options);
+  const preferredNodes = buildNodes(baseNodes, preferredEndpoints, options);
+  const nodes = ensureUniqueNodeNames([...preferredNodes, ...appendNodes]);
 
   const payload = {
     version: 1,
@@ -548,7 +551,7 @@ async function handleGenerate(request, env, url) {
       surge: withToken('surge'),
     },
     counts: {
-      inputNodes: baseNodes.length,
+      inputNodes: baseNodes.length + appendNodes.length,
       preferredEndpoints: preferredEndpoints.length,
       outputNodes: nodes.length,
     },

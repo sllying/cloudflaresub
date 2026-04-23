@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { buildNodes as buildWorkerNodes } from '../src/worker.js';
+import { buildNodes as buildWorkerNodes, ensureUniqueNodeNames } from '../src/worker.js';
 import {
   decryptPayload,
   encryptPayload,
@@ -34,16 +34,31 @@ const clash = renderClashSubscription(expanded.nodes);
 assert.match(clash, /proxies:/);
 assert.match(clash, /edge\.example\.com/);
 
-const workerNodes = buildWorkerNodes(
+const workerNodes = ensureUniqueNodeNames(buildWorkerNodes(
   [
     { ...nodes[0], name: '德国-DNS加速-x | 通用' },
     { ...nodes[0], name: '德国-DNS加速-x | 通用' },
   ],
   [{ server: '104.16.1.2', remark: '通用' }],
   { keepOriginalHost: true, namePrefix: '' },
-);
+));
 assert.equal(workerNodes[0].name, '德国-DNS加速-x | 通用 | 通用');
 assert.equal(workerNodes[1].name, '德国-DNS加速-x | 通用 | 通用 | 2');
+
+const appendedNode = { ...nodes[0], name: '直连保留节点', server: 'keep.example.com' };
+const combinedNodes = buildWorkerNodes(nodes, endpoints, {
+  keepOriginalHost: true,
+  namePrefix: 'CF',
+});
+const mergedNodes = ensureUniqueNodeNames(
+  combinedNodes.concat([appendedNode]),
+);
+assert.equal(buildWorkerNodes(nodes, [{ server: '104.16.1.2', remark: 'HK' }], {
+  keepOriginalHost: true,
+  namePrefix: 'CF',
+})[0].server, '104.16.1.2');
+assert.equal(mergedNodes.at(-1).server, 'keep.example.com');
+assert.equal(mergedNodes.at(-1).name, '直连保留节点');
 
 const surge = renderSurgeSubscription(expanded.nodes, 'https://sub.example.com/sub/demo?target=surge');
 assert.match(surge, /\[Proxy]/);

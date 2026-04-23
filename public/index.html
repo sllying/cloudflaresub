@@ -62,13 +62,24 @@ cf.example.com:443#US-Edge"
             </p>
           </div>
 
+          <div>
+            <label for="appendNodeLinks">3. 追加节点（可选）</label>
+            <textarea
+              id="appendNodeLinks"
+              name="appendNodeLinks"
+              rows="8"
+              placeholder="支持 vmess://、vless://、trojan://，一行一个。这里的节点会原样追加到订阅末尾，不替换为优选 IP。"
+            ></textarea>
+            <p class="hint">适合把不需要走优选 IP 的节点直接附加到最终订阅最后面。</p>
+          </div>
+
           <div class="grid two-col compact">
             <div>
-              <label for="namePrefix">3. 备注前缀（可选）</label>
+              <label for="namePrefix">4. 备注前缀（可选）</label>
               <input id="namePrefix" name="namePrefix" type="text" placeholder="例如 CF" />
             </div>
             <div>
-              <label for="customShortId">4. 固定订阅标识（可选）</label>
+              <label for="customShortId">5. 固定订阅标识（可选）</label>
               <input
                 id="customShortId"
                 name="customShortId"

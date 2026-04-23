@@ -6,6 +6,7 @@ const warningBox = document.getElementById('warningBox');
 const previewBody = document.getElementById('previewBody');
 const copyAllLinksBtn = document.getElementById('copyAllLinksBtn');
 const customShortIdInput = document.getElementById('customShortId');
+const appendNodeLinksInput = document.getElementById('appendNodeLinks');
 
 const autoUrl = document.getElementById('autoUrl');
 const rawUrl = document.getElementById('rawUrl');
@@ -51,6 +52,7 @@ form.addEventListener('submit', async (event) => {
   const payload = {
     nodeLinks: document.getElementById('nodeLinks').value,
     preferredIps: document.getElementById('preferredIps').value,
+    appendNodeLinks: appendNodeLinksInput.value,
     namePrefix: document.getElementById('namePrefix').value,
     customShortId: customShortIdInput.value,
     keepOriginalHost: document.getElementById('keepOriginalHost').checked,
