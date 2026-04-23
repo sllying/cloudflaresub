@@ -152,7 +152,28 @@ function buildNodes(baseNodes, preferredEndpoints, options = {}) {
       });
     }
   }
-  return output;
+  return ensureUniqueNodeNames(output);
+}
+
+function ensureUniqueNodeNames(nodes) {
+  const seen = new Map();
+  return nodes.map((node) => {
+    const baseName = String(node.name || 'node').trim() || 'node';
+    const count = (seen.get(baseName) || 0) + 1;
+    seen.set(baseName, count);
+
+    if (count === 1) {
+      return {
+        ...node,
+        name: baseName,
+      };
+    }
+
+    return {
+      ...node,
+      name: `${baseName} | ${count}`,
+    };
+  });
 }
 
 function encodeVmess(node) {
@@ -582,6 +603,8 @@ async function handleSub(url, env) {
   }
   return text(renderRaw(nodes), 200, 'text/plain; charset=utf-8');
 }
+
+export { buildNodes, ensureUniqueNodeNames };
 
 export default {
   async fetch(request, env) {
