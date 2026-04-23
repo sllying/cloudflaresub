@@ -82,6 +82,8 @@ function parseVmess(link) {
 
 function parseUrlLike(link, type) {
   const u = new URL(link);
+  const params = Object.fromEntries(u.searchParams.entries());
+  const security = String(params.security || '').toLowerCase();
   return {
     type,
     name: decodeURIComponent(u.hash.replace(/^#/, '')) || type,
@@ -89,14 +91,16 @@ function parseUrlLike(link, type) {
     port: Number(u.port || 443),
     password: type === 'trojan' ? decodeURIComponent(u.username) : undefined,
     uuid: type === 'vless' ? decodeURIComponent(u.username) : undefined,
-    network: u.searchParams.get('type') || 'tcp',
-    tls: (u.searchParams.get('security') || '').toLowerCase() === 'tls',
-    host: u.searchParams.get('host') || u.searchParams.get('sni') || '',
-    path: u.searchParams.get('path') || '/',
-    sni: u.searchParams.get('sni') || u.searchParams.get('host') || '',
-    fp: u.searchParams.get('fp') || '',
-    alpn: u.searchParams.get('alpn') || '',
-    flow: u.searchParams.get('flow') || '',
+    network: params.type || 'tcp',
+    tls: security === 'tls' || security === 'reality' || security === 'xtls',
+    security,
+    host: params.host || params.sni || '',
+    path: params.path || '/',
+    sni: params.sni || params.host || '',
+    fp: params.fp || '',
+    alpn: params.alpn || '',
+    flow: params.flow || '',
+    params,
   };
 }
 
@@ -199,27 +203,47 @@ function encodeVmess(node) {
 
 function encodeVless(node) {
   const url = new URL(`vless://${encodeURIComponent(node.uuid)}@${node.server}:${node.port}`);
-  url.searchParams.set('type', node.network || 'ws');
-  if (node.tls) url.searchParams.set('security', 'tls');
-  if (node.host) url.searchParams.set('host', node.host);
-  if (node.sni) url.searchParams.set('sni', node.sni);
-  if (node.path) url.searchParams.set('path', node.path);
-  if (node.alpn) url.searchParams.set('alpn', node.alpn);
-  if (node.fp) url.searchParams.set('fp', node.fp);
-  if (node.flow) url.searchParams.set('flow', node.flow);
+  const params = new URLSearchParams(node.params || {});
+  params.set('type', node.network || 'ws');
+  if (node.security) params.set('security', node.security);
+  else if (node.tls) params.set('security', 'tls');
+  else params.delete('security');
+  if (node.host) params.set('host', node.host);
+  else params.delete('host');
+  if (node.sni) params.set('sni', node.sni);
+  else params.delete('sni');
+  if (node.path) params.set('path', node.path);
+  else params.delete('path');
+  if (node.alpn) params.set('alpn', node.alpn);
+  else params.delete('alpn');
+  if (node.fp) params.set('fp', node.fp);
+  else params.delete('fp');
+  if (node.flow) params.set('flow', node.flow);
+  else params.delete('flow');
+  url.search = params.toString();
   url.hash = node.name;
   return url.toString();
 }
 
 function encodeTrojan(node) {
   const url = new URL(`trojan://${encodeURIComponent(node.password)}@${node.server}:${node.port}`);
-  if (node.network) url.searchParams.set('type', node.network);
-  if (node.tls) url.searchParams.set('security', 'tls');
-  if (node.host) url.searchParams.set('host', node.host);
-  if (node.sni) url.searchParams.set('sni', node.sni);
-  if (node.path) url.searchParams.set('path', node.path);
-  if (node.alpn) url.searchParams.set('alpn', node.alpn);
-  if (node.fp) url.searchParams.set('fp', node.fp);
+  const params = new URLSearchParams(node.params || {});
+  if (node.network) params.set('type', node.network);
+  else params.delete('type');
+  if (node.security) params.set('security', node.security);
+  else if (node.tls) params.set('security', 'tls');
+  else params.delete('security');
+  if (node.host) params.set('host', node.host);
+  else params.delete('host');
+  if (node.sni) params.set('sni', node.sni);
+  else params.delete('sni');
+  if (node.path) params.set('path', node.path);
+  else params.delete('path');
+  if (node.alpn) params.set('alpn', node.alpn);
+  else params.delete('alpn');
+  if (node.fp) params.set('fp', node.fp);
+  else params.delete('fp');
+  url.search = params.toString();
   url.hash = node.name;
   return url.toString();
 }
@@ -607,7 +631,7 @@ async function handleSub(url, env) {
   return text(renderRaw(nodes), 200, 'text/plain; charset=utf-8');
 }
 
-export { buildNodes, ensureUniqueNodeNames };
+export { buildNodes, ensureUniqueNodeNames, parseRawLinks, renderRaw };
 
 export default {
   async fetch(request, env) {

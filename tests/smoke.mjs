@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
-import { buildNodes as buildWorkerNodes, ensureUniqueNodeNames } from '../src/worker.js';
+import {
+  buildNodes as buildWorkerNodes,
+  ensureUniqueNodeNames,
+  parseRawLinks as parseWorkerRawLinks,
+  renderRaw as renderWorkerRaw,
+} from '../src/worker.js';
 import {
   decryptPayload,
   encryptPayload,
@@ -59,6 +64,19 @@ assert.equal(buildWorkerNodes(nodes, [{ server: '104.16.1.2', remark: 'HK' }], {
 })[0].server, '104.16.1.2');
 assert.equal(mergedNodes.at(-1).server, 'keep.example.com');
 assert.equal(mergedNodes.at(-1).name, '直连保留节点');
+
+const realityUri =
+  'vless://6a17fcfe-8181-43b9-b54f-456d66b6aa95@136.244.108.214:47410?encryption=none&type=tcp&security=reality&sni=www.apple.com&fp=chrome&pbk=xnVX0R1BFquUHbFxmIa2oAwDfix-e2z_Omjb4_JAv2k&sid=01f1c4547e5c1823&spx=%2F#Reality-Test';
+const realityNodes = parseWorkerRawLinks(realityUri);
+assert.equal(realityNodes.length, 1);
+assert.equal(realityNodes[0].security, 'reality');
+assert.equal(realityNodes[0].params.pbk, 'xnVX0R1BFquUHbFxmIa2oAwDfix-e2z_Omjb4_JAv2k');
+assert.equal(realityNodes[0].params.sid, '01f1c4547e5c1823');
+const realityRendered = Buffer.from(renderWorkerRaw(realityNodes), 'base64').toString('utf8');
+assert.match(realityRendered, /security=reality/);
+assert.match(realityRendered, /pbk=xnVX0R1BFquUHbFxmIa2oAwDfix-e2z_Omjb4_JAv2k/);
+assert.match(realityRendered, /sid=01f1c4547e5c1823/);
+assert.match(realityRendered, /spx=%2F/);
 
 const surge = renderSurgeSubscription(expanded.nodes, 'https://sub.example.com/sub/demo?target=surge');
 assert.match(surge, /\[Proxy]/);
