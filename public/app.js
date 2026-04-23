@@ -68,7 +68,15 @@ form.addEventListener('submit', async (event) => {
       body: JSON.stringify(payload),
     });
 
-    const data = await response.json();
+    const rawText = await response.text();
+    let data;
+    try {
+      data = rawText ? JSON.parse(rawText) : null;
+    } catch {
+      const message = buildNonJsonErrorMessage(response, rawText);
+      throw new Error(message);
+    }
+
     if (!response.ok || !data.ok) {
       throw new Error(data.error || '生成失败');
     }
@@ -198,6 +206,19 @@ function persistCustomShortId(value) {
     }
     window.localStorage.removeItem(CUSTOM_SHORT_ID_STORAGE_KEY);
   } catch {}
+}
+
+function buildNonJsonErrorMessage(response, rawText) {
+  const compactText = String(rawText || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (compactText) {
+    return `接口返回异常（HTTP ${response.status}）：${compactText.slice(0, 160)}`;
+  }
+
+  return `接口返回异常（HTTP ${response.status}），且不是 JSON。`;
 }
 
 function buildClientShareText() {
