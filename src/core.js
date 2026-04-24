@@ -603,6 +603,11 @@ function renderClashProxy(node) {
     if (node.fp) {
       lines.push(`    client-fingerprint: ${yamlQuote(node.fp)}`);
     }
+    if (String(node.security || '').trim().toLowerCase() === 'reality' && node.params?.pbk) {
+      lines.push('    reality-opts:');
+      lines.push(`      public-key: ${yamlQuote(node.params.pbk)}`);
+      lines.push(`      short-id: ${yamlQuote(node.params.sid || '')}`);
+    }
     lines.push(`    skip-cert-verify: ${node.allowInsecure ? 'true' : 'false'}`);
   }
 

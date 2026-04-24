@@ -4,6 +4,7 @@ import {
   ensureUniqueNodeNames,
   parseRawLinks as parseWorkerRawLinks,
   renderRaw as renderWorkerRaw,
+  renderClash as renderWorkerClash,
 } from '../src/worker.js';
 import {
   decryptPayload,
@@ -77,6 +78,54 @@ assert.match(realityRendered, /security=reality/);
 assert.match(realityRendered, /pbk=xnVX0R1BFquUHbFxmIa2oAwDfix-e2z_Omjb4_JAv2k/);
 assert.match(realityRendered, /sid=01f1c4547e5c1823/);
 assert.match(realityRendered, /spx=%2F/);
+const realityClash = renderWorkerClash(realityNodes);
+assert.match(realityClash, /client-fingerprint: "chrome"/);
+assert.match(realityClash, /reality-opts:/);
+assert.match(realityClash, /public-key: "xnVX0R1BFquUHbFxmIa2oAwDfix-e2z_Omjb4_JAv2k"/);
+assert.match(realityClash, /short-id: "01f1c4547e5c1823"/);
+
+const legacyRealityNode = {
+  type: 'vless',
+  name: 'Legacy-Reality',
+  server: '64.176.224.114',
+  port: 443,
+  uuid: '33f3d64f-6dd8-47dc-b90d-801ec94d2b36',
+  network: 'tcp',
+  tls: true,
+  security: 'reality',
+  sni: 'www.constant.com',
+  fp: 'chrome',
+  params: {
+    type: 'tcp',
+    security: 'reality',
+    sni: 'www.constant.com',
+    fp: 'chrome',
+    pbk: 'sHgjFeswmKfYKy57P3MrlbxEriSt7BEkzGblKwtGxFE',
+    sid: '63f61ce9',
+    spx: '/',
+    encryption: 'none',
+  },
+};
+const legacyRealityRaw = Buffer.from(renderWorkerRaw([legacyRealityNode]), 'base64').toString('utf8');
+assert.match(legacyRealityRaw, /security=reality/);
+assert.match(legacyRealityRaw, /pbk=sHgjFeswmKfYKy57P3MrlbxEriSt7BEkzGblKwtGxFE/);
+assert.match(legacyRealityRaw, /sid=63f61ce9/);
+const legacyRealityClash = renderWorkerClash([legacyRealityNode]);
+assert.match(legacyRealityClash, /servername: "www.constant.com"/);
+assert.match(legacyRealityClash, /client-fingerprint: "chrome"/);
+assert.match(legacyRealityClash, /public-key: "sHgjFeswmKfYKy57P3MrlbxEriSt7BEkzGblKwtGxFE"/);
+
+const trojanWsUri =
+  'trojan://password123@example.com:443?type=ws&security=tls&host=cdn.example.com&sni=cdn.example.com&path=%2Fws#Trojan-WS';
+const trojanWsNodes = parseWorkerRawLinks(trojanWsUri);
+const trojanWsRaw = Buffer.from(renderWorkerRaw(trojanWsNodes), 'base64').toString('utf8');
+assert.match(trojanWsRaw, /type=ws/);
+assert.match(trojanWsRaw, /host=cdn.example.com/);
+assert.match(trojanWsRaw, /path=%2Fws/);
+const trojanWsClash = renderWorkerClash(trojanWsNodes);
+assert.match(trojanWsClash, /type: trojan/);
+assert.match(trojanWsClash, /network: ws/);
+assert.match(trojanWsClash, /Host: "cdn\.example\.com"/);
 
 const surge = renderSurgeSubscription(expanded.nodes, 'https://sub.example.com/sub/demo?target=surge');
 assert.match(surge, /\[Proxy]/);

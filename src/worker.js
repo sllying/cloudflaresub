@@ -4,6 +4,15 @@
 // - Secret/Variable: SUB_ACCESS_TOKEN
 // Optional:
 // - Secret/Variable: SUB_LINK_SECRET (legacy long-token compatibility)
+import {
+  expandNodes as coreExpandNodes,
+  parseNodeLinks as coreParseNodeLinks,
+  parsePreferredEndpoints as coreParsePreferredEndpoints,
+  renderClashSubscription as coreRenderClashSubscription,
+  renderRawSubscription as coreRenderRawSubscription,
+  renderSurgeSubscription as coreRenderSurgeSubscription,
+  summarizeNodes as coreSummarizeNodes,
+} from './core.js';
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -105,33 +114,11 @@ function parseUrlLike(link, type) {
 }
 
 function parseRawLinks(input) {
-  const lines = String(input || '')
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  const result = [];
-  for (const line of lines) {
-    if (line.startsWith('vmess://')) {
-      result.push(parseVmess(line));
-      continue;
-    }
-    if (line.startsWith('vless://')) {
-      result.push(parseUrlLike(line, 'vless'));
-      continue;
-    }
-    if (line.startsWith('trojan://')) {
-      result.push(parseUrlLike(line, 'trojan'));
-      continue;
-    }
-    try {
-      const decoded = b64DecodeUtf8(line);
-      if (/^(vmess|vless|trojan):\/\//m.test(decoded)) {
-        result.push(...parseRawLinks(decoded));
-      }
-    } catch {}
+  const text = String(input || '').trim();
+  if (!text) {
+    return [];
   }
-  return result;
+  return coreParseNodeLinks(text).nodes.map(normalizeStoredNode);
 }
 
 function buildNodes(baseNodes, preferredEndpoints, options = {}) {
@@ -249,187 +236,49 @@ function encodeTrojan(node) {
 }
 
 function renderRaw(nodes) {
-  const lines = nodes
-    .map((node) => {
-      if (node.type === 'vmess') return encodeVmess(node);
-      if (node.type === 'vless') return encodeVless(node);
-      if (node.type === 'trojan') return encodeTrojan(node);
-      return '';
-    })
-    .filter(Boolean);
-  return b64EncodeUtf8(lines.join('\n'));
+  return coreRenderRawSubscription(nodes.map(normalizeStoredNode));
 }
 
 function renderClash(nodes) {
-  const proxies = nodes
-    .map((node) => {
-      if (node.type === 'vmess') {
-        const lines = [
-          `  - name: "${escapeYaml(node.name)}"`,
-          `    type: vmess`,
-          `    server: ${node.server}`,
-          `    port: ${node.port}`,
-          `    uuid: ${node.uuid}`,
-          `    alterId: 0`,
-          `    cipher: ${node.cipher || 'auto'}`,
-          `    udp: true`,
-          `    tls: ${node.tls ? 'true' : 'false'}`,
-          `    network: ${node.network || 'ws'}`,
-        ];
-
-        if (node.sni) {
-          lines.push(`    servername: "${escapeYaml(node.sni)}"`);
-        }
-
-        if ((node.network || 'ws') === 'ws') {
-          lines.push(
-            `    ws-opts:`,
-            `      path: "${escapeYaml(node.path || '/')}"`,
-            `      headers:`,
-            `        Host: "${escapeYaml(node.host || node.sni || '')}"`
-          );
-        }
-
-        return lines.join('\n');
-      }
-
-      if (node.type === 'vless') {
-        const lines = [
-          `  - name: "${escapeYaml(node.name)}"`,
-          `    type: vless`,
-          `    server: ${node.server}`,
-          `    port: ${node.port}`,
-          `    uuid: ${node.uuid}`,
-          `    udp: true`,
-          `    tls: ${node.tls ? 'true' : 'false'}`,
-          `    network: ${node.network || 'ws'}`,
-        ];
-
-        if (node.sni) {
-          lines.push(`    servername: "${escapeYaml(node.sni)}"`);
-        }
-
-        if ((node.network || 'ws') === 'ws') {
-          lines.push(
-            `    ws-opts:`,
-            `      path: "${escapeYaml(node.path || '/')}"`,
-            `      headers:`,
-            `        Host: "${escapeYaml(node.host || node.sni || '')}"`
-          );
-        }
-
-        return lines.join('\n');
-      }
-
-      if (node.type === 'trojan') {
-        const lines = [
-          `  - name: "${escapeYaml(node.name)}"`,
-          `    type: trojan`,
-          `    server: ${node.server}`,
-          `    port: ${node.port}`,
-          `    password: "${escapeYaml(node.password || '')}"`,
-          `    udp: true`,
-        ];
-
-        if (node.sni) {
-          lines.push(`    sni: "${escapeYaml(node.sni)}"`);
-        }
-
-        if (node.tls !== false) {
-          lines.push(`    tls: true`);
-        }
-
-        if (node.network) {
-          lines.push(`    network: ${node.network}`);
-        }
-
-        if (node.network === 'ws') {
-          lines.push(
-            `    ws-opts:`,
-            `      path: "${escapeYaml(node.path || '/')}"`,
-            `      headers:`,
-            `        Host: "${escapeYaml(node.host || node.sni || '')}"`
-          );
-        }
-
-        return lines.join('\n');
-      }
-
-      return '';
-    })
-    .filter(Boolean);
-
-  const proxyNames = nodes.map(
-    (node) => `      - "${escapeYaml(node.name)}"`
-  );
-
-  const allGroupMembers = [
-    `      - "自动选择"`,
-    ...proxyNames,
-    `      - DIRECT`,
-  ];
-
-  const autoGroupMembers = proxyNames.length ? proxyNames : [`      - DIRECT`];
-
-  return [
-    `mixed-port: 7890`,
-    `allow-lan: false`,
-    `mode: rule`,
-    `log-level: info`,
-    `ipv6: true`,
-    ``,
-    `proxies:`,
-    ...(proxies.length ? proxies : []),
-    ``,
-    `proxy-groups:`,
-    `  - name: "自动选择"`,
-    `    type: url-test`,
-    `    url: "http://www.gstatic.com/generate_204"`,
-    `    interval: 300`,
-    `    tolerance: 50`,
-    `    proxies:`,
-    ...autoGroupMembers,
-    ``,
-    `  - name: "节点选择"`,
-    `    type: select`,
-    `    proxies:`,
-    ...allGroupMembers,
-    ``,
-    `rules:`,
-    `  - MATCH,节点选择`,
-  ].join('\n');
+  return coreRenderClashSubscription(nodes.map(normalizeStoredNode));
 }
 
 function renderSurge(nodes, baseUrl, accessToken) {
-  const proxies = nodes
-    .filter((node) => node.type === 'vmess' || node.type === 'trojan')
-    .map((node) => {
-      if (node.type === 'vmess') {
-        return `${node.name} = vmess, ${node.server}, ${node.port}, username=${node.uuid}, ws=true, ws-path=${node.path || '/'}, ws-headers=Host:${node.host || ''}, tls=${node.tls ? 'true' : 'false'}, sni=${node.sni || ''}`;
-      }
-      return `${node.name} = trojan, ${node.server}, ${node.port}, password=${node.password || ''}, sni=${node.sni || ''}`;
-    });
+  const requestUrl = accessToken ? `${baseUrl}?token=${encodeURIComponent(accessToken)}` : baseUrl;
+  return coreRenderSurgeSubscription(nodes.map(normalizeStoredNode), requestUrl);
+}
 
-  return [
-    '[General]',
-    'skip-proxy = 127.0.0.1, localhost',
-    '',
-    '[Proxy]',
-    ...proxies,
-    '',
-    '[Proxy Group]',
-    'Proxy = select, ' +
-      nodes
-        .filter((n) => n.type === 'vmess' || n.type === 'trojan')
-        .map((n) => n.name)
-        .join(', '),
-    '',
-    '[Rule]',
-    'FINAL,Proxy',
-    '',
-    '; token-protected subscription',
-    `; ${baseUrl}?token=${accessToken}`,
-  ].join('\n');
+function normalizeStoredNode(node = {}) {
+  const security = String(node.security || (node.tls ? 'tls' : '')).trim().toLowerCase();
+  const alpn = Array.isArray(node.alpn)
+    ? node.alpn
+    : String(node.alpn || '')
+        .split(/[\n,]+/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+  return {
+    ...node,
+    name: String(node.name || node.ps || 'node').trim() || 'node',
+    server: String(node.server || node.add || '').trim(),
+    originalServer: String(node.originalServer || node.server || node.add || '').trim(),
+    port: Number(node.port || 443),
+    network: String(node.network || node.net || 'tcp').trim() || 'tcp',
+    path: String(node.path || '/').trim() || '/',
+    hostHeader: String(node.hostHeader || node.host || '').trim(),
+    host: String(node.host || node.hostHeader || '').trim(),
+    sni: String(node.sni || node.hostHeader || node.host || '').trim(),
+    tls: Boolean(node.tls || security === 'tls' || security === 'reality' || security === 'xtls'),
+    security,
+    alpn,
+    fp: String(node.fp || '').trim(),
+    flow: String(node.flow || '').trim(),
+    serviceName: String(node.serviceName || '').trim(),
+    authority: String(node.authority || '').trim(),
+    encryption: String(node.encryption || 'none').trim() || 'none',
+    allowInsecure: Boolean(node.allowInsecure),
+    params: { ...(node.params || {}) },
+  };
 }
 
 function createShortId(length = 10) {
@@ -496,12 +345,20 @@ async function handleGenerate(request, env, url) {
     return json({ ok: false, error: '请求体不是合法 JSON' }, 400);
   }
 
-  const baseNodes = parseRawLinks(body.nodeLinks || '');
-  const appendNodes = parseRawLinks(body.appendNodeLinks || '');
-  const preferredEndpoints = parsePreferredEndpoints(body.preferredIps || '');
+  let baseParsed;
+  let appendParsed;
+  let preferredParsed;
+  try {
+    baseParsed = coreParseNodeLinks(body.nodeLinks || '');
+    appendParsed = body.appendNodeLinks ? coreParseNodeLinks(body.appendNodeLinks) : { nodes: [], warnings: [] };
+    preferredParsed = coreParsePreferredEndpoints(body.preferredIps || '');
+  } catch (error) {
+    return json({ ok: false, error: error.message || '输入解析失败' }, 400);
+  }
 
-  if (!baseNodes.length) return json({ ok: false, error: '没有识别到可用节点' }, 400);
-  if (!preferredEndpoints.length) return json({ ok: false, error: '没有识别到可用优选地址' }, 400);
+  const baseNodes = baseParsed.nodes.map(normalizeStoredNode);
+  const appendNodes = appendParsed.nodes.map(normalizeStoredNode);
+  const preferredEndpoints = preferredParsed.endpoints;
 
   const options = {
     namePrefix: body.namePrefix || '',
@@ -515,7 +372,8 @@ async function handleGenerate(request, env, url) {
     return json({ ok: false, error: error.message || '固定订阅标识不合法' }, 400);
   }
 
-  const preferredNodes = buildNodes(baseNodes, preferredEndpoints, options);
+  const expanded = coreExpandNodes(baseNodes, preferredEndpoints, options);
+  const preferredNodes = expanded.nodes.map(normalizeStoredNode);
   const nodes = ensureUniqueNodeNames([...preferredNodes, ...appendNodes]);
 
   const payload = {
@@ -579,15 +437,12 @@ async function handleGenerate(request, env, url) {
       preferredEndpoints: preferredEndpoints.length,
       outputNodes: nodes.length,
     },
-    preview: nodes.slice(0, 20).map((node) => ({
-      name: node.name,
-      type: node.type,
-      server: node.server,
-      port: node.port,
-      host: node.host || '',
-      sni: node.sni || '',
-    })),
+    preview: coreSummarizeNodes(nodes, 20),
     warnings: [
+      ...(baseParsed.warnings || []),
+      ...(appendParsed.warnings || []),
+      ...(preferredParsed.warnings || []),
+      ...(expanded.warnings || []),
       ...(accessToken ? [] : ['未检测到 SUB_ACCESS_TOKEN，订阅链接将没有第二层访问保护。']),
       ...(reusedCustomId ? [`固定订阅标识 ${id} 已存在，已用最新节点内容覆盖更新。`] : []),
     ],
@@ -615,7 +470,7 @@ async function handleSub(url, env) {
   if (!raw) return text('not found', 404);
 
   const record = JSON.parse(raw);
-  const nodes = record.nodes || [];
+  const nodes = (record.nodes || []).map(normalizeStoredNode);
   const target = (url.searchParams.get('target') || 'raw').toLowerCase();
 
   if (target === 'clash') {
@@ -631,7 +486,7 @@ async function handleSub(url, env) {
   return text(renderRaw(nodes), 200, 'text/plain; charset=utf-8');
 }
 
-export { buildNodes, ensureUniqueNodeNames, parseRawLinks, renderRaw };
+export { buildNodes, ensureUniqueNodeNames, parseRawLinks, renderRaw, renderClash };
 
 export default {
   async fetch(request, env) {
