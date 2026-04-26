@@ -26,12 +26,18 @@ assert.equal(nodes[0].server, 'edge.example.com');
 
 const { endpoints } = parsePreferredEndpoints('104.16.1.2#HK\n104.17.2.3:2053#US');
 assert.equal(endpoints.length, 2);
+assert.equal(parseNodeLinks('').nodes.length, 0);
+assert.equal(parsePreferredEndpoints('').endpoints.length, 0);
 
 const expanded = expandNodes(nodes, endpoints, { keepOriginalHost: true, namePrefix: 'CF' });
 assert.equal(expanded.nodes.length, 2);
 assert.equal(expanded.nodes[0].server, '104.16.1.2');
 assert.equal(expanded.nodes[0].hostHeader, 'edge.example.com');
 assert.equal(expanded.nodes[1].port, 2053);
+
+const withoutPreferred = expandNodes(nodes, [], { keepOriginalHost: true, namePrefix: 'CF' });
+assert.equal(withoutPreferred.nodes.length, 1);
+assert.equal(withoutPreferred.nodes[0].server, 'edge.example.com');
 
 const raw = renderRawSubscription(expanded.nodes);
 assert.ok(raw.length > 10);

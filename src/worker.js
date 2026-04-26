@@ -375,6 +375,9 @@ async function handleGenerate(request, env, url) {
   const expanded = coreExpandNodes(baseNodes, preferredEndpoints, options);
   const preferredNodes = expanded.nodes.map(normalizeStoredNode);
   const nodes = ensureUniqueNodeNames([...preferredNodes, ...appendNodes]);
+  if (!nodes.length) {
+    return json({ ok: false, error: '请至少填写 1 个节点链接或追加节点。' }, 400);
+  }
 
   const payload = {
     version: 1,
